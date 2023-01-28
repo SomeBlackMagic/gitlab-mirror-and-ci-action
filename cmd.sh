@@ -1,6 +1,4 @@
 #!/bin/bash
-
-
 set -eu
 
 ##################################################################
@@ -20,95 +18,100 @@ urlencode() (
 )
 
 ##################################################################
-DEFAULT_POLL_TIMEOUT=10
+DEFAULT_POLL_TIMEOUT=5
 POLL_TIMEOUT=${POLL_TIMEOUT:-$DEFAULT_POLL_TIMEOUT}
 
-#git checkout "${GITHUB_REF:11}"
+if [[ ${CI_DEBUG:-''} == "true" ]]; then
+  set -x
+fi
 
-#branch="$(git symbolic-ref --short HEAD)"
-branch="dd113a7b"
+git checkout "${GITHUB_REF:11}"
+
+branch="$(git symbolic-ref --short HEAD)"
+
 branch_uri="$(urlencode ${branch})"
-set -x
-#sh -c "git config --global credential.username ${GITLAB_USERNAME}"
-#sh -c "git config --global core.askPass /cred-helper.sh"
-#sh -c "git config --global credential.helper cache"
-#sh -c "git remote add mirror $*"
-#sh -c "echo pushing to $branch branch at $(git remote get-url --push mirror)"
-#if [ "${FORCE_PUSH:-}" = "true" ]
-#then
-#  sh -c "git push --force mirror $branch"
-#else
-#  sh -c "git push mirror $branch"
-#fi
-#
-#if [ "${FOLLOW_TAGS:-}" = "true" ]
-#then
-#  sh -c "echo pushing with --tags"
-#  sh -c "git push --tags mirror $branch"
-#fi
 
-#sleep ${POLL_TIMEOUT}
-#'
-# shellcheck disable=SC2039
-for i in {1..10}
-do
-  echo "..........................................................................."
-  pipeline_id=$(curl --failed --header "PRIVATE-TOKEN: ${GITLAB_PASSWORD}" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/repository/commits/${branch_uri}" | jq '.last_pipeline.id')
-  if [[ ${pipeline_id} != ?(-)+([0-9]) ]]; then
-    sleep 1
-  fi
-  echo "..........................................................................."
-  sleep 1
-done
+sh -c "git config --global credential.username ${GITLAB_USERNAME}"
+sh -c "git config --global core.askPass /cred-helper.sh"
+sh -c "git config --global credential.helper cache"
+sh -c "git remote add mirror $*"
+sh -c "echo pushing to $branch branch at $(git remote get-url --push mirror)"
+if [ "${FORCE_PUSH:-}" = "true" ]
+then
+  sh -c "git push --force mirror $branch"
+else
+  sh -c "git push mirror $branch"
+fi
 
-echo "NOTICE: Waiting for lock ${RESOURCE_LOCK_LOCK_DIR}: "
-until mkdir "${RESOURCE_LOCK_LOCK_DIR}" > /dev/null 2>&1 || (( RESOURCE_LOCK_LOCK_RETRIES == RESOURCE_LOCK_LOCK_RETRIES_MAX )); do
+if [ "${FOLLOW_TAGS:-}" = "true" ]
+then
+  sh -c "echo pushing with --tags"
+  sh -c "git push --tags mirror $branch"
+fi
+
+GET_PIPELINE_ID_RETRIES=1
+GET_PIPELINE_ID_RETRIES_MAX=60
+pipeline_id=null
+
+echo Get pipelineId from commit ${branch_uri}
+until [[ ${pipeline_id} =~ [0-9] ]] || (( GET_PIPELINE_ID_RETRIES == GET_PIPELINE_ID_RETRIES_MAX )); do
   echo -n "."
-  let "RESOURCE_LOCK_LOCK_RETRIES++"
   sleep 1
+  (( GET_PIPELINE_ID_RETRIES++ ))
+  pipeline_id=$(curl --fail --header "PRIVATE-TOKEN: ${GITLAB_PASSWORD}" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/repository/commits/${branch_uri}" | jq '.last_pipeline.id')
 done
-#
-#pipeline_id=$(curl --failed --header "PRIVATE-TOKEN: ${GITLAB_PASSWORD}" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/repository/commits/${branch_uri}" | jq '.last_pipeline.id')
-#
-#echo "Triggered CI for branch ${branch}"
-#echo "Working with pipeline id #${pipeline_id}"
-#echo "Poll timeout set to ${POLL_TIMEOUT}"
-#
-#ci_status="pending"
-#
-#until [[ "$ci_status" != "pending" && "$ci_status" != "running" ]]
-#do
-#   sleep $POLL_TIMEOUT
-#   ci_output=$(curl --header "PRIVATE-TOKEN: $GITLAB_PASSWORD" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/pipelines/${pipeline_id}")
-#   ci_status=$(jq -n "$ci_output" | jq -r .status)
-#   ci_web_url=$(jq -n "$ci_output" | jq -r .web_url)
-#
-#   echo "Current pipeline status: ${ci_status}"
-#   if [ "$ci_status" = "running" ]
-#   then
-#     echo "Checking pipeline status..."
-#     curl -d '{"state":"pending", "target_url": "'${ci_web_url}'", "context": "gitlab-ci"}' -H "Authorization: token ${GITHUB_TOKEN}"  -H "Accept: application/vnd.github.antiope-preview+json" -X POST --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"  > /dev/null
-#   fi
-#done
-#
-#echo "Pipeline finished with status ${ci_status}"
-#
-#echo "Fetching all GitLab pipeline jobs involved"
-#ci_jobs=$(curl --header "PRIVATE-TOKEN: $GITLAB_PASSWORD" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/pipelines/${pipeline_id}/jobs" | jq -r '.[] | { id, name, stage }')
-#echo "Posting output from all GitLab pipeline jobs"
-#for JOB_ID in $(echo $ci_jobs | jq -r .id); do
-#  echo "##[group]Stage $( echo $ci_jobs | jq -r "select(.id=="$JOB_ID") | .stage" ) / Job $( echo $ci_jobs | jq -r "select(.id=="$JOB_ID") | .name" )"
-#  curl --header "PRIVATE-TOKEN: $GITLAB_PASSWORD" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/jobs/${JOB_ID}/trace"
-#  echo "##[endgroup]"
-#done
-#echo "Debug problems by unfolding stages/jobs above"
-#
-#if [ "$ci_status" = "success" ]
-#then
-#  curl -d '{"state":"success", "target_url": "'${ci_web_url}'", "context": "gitlab-ci"}' -H "Authorization: token ${GITHUB_TOKEN}"  -H "Accept: application/vnd.github.antiope-preview+json" -X POST --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
-#  exit 0
-#elif [ "$ci_status" = "failed" ]
-#then
-#  curl -d '{"state":"failure", "target_url": "'${ci_web_url}'", "context": "gitlab-ci"}' -H "Authorization: token ${GITHUB_TOKEN}"  -H "Accept: application/vnd.github.antiope-preview+json" -X POST --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
-#  exit 1
-#fi
+echo
+if [ ${GET_PIPELINE_ID_RETRIES} -eq ${GET_PIPELINE_ID_RETRIES_MAX} ]; then
+  echo "ERROR: Can not get pipelineId from api"
+  exit 1
+fi
+
+echo "INFO: Working with pipelineId #${pipeline_id}"
+
+ci_status="pending"
+GET_JOB_STATUS_RETRIES=1
+GET_JOB_STATUS_RETRIES_MAX=600
+
+until [[ "$ci_status" != "pending" && "$ci_status" != "running" ]] || (( GET_JOB_STATUS_RETRIES == GET_JOB_STATUS_RETRIES_MAX ))
+do
+   sleep $POLL_TIMEOUT
+   ci_output=$(curl --fail --header "PRIVATE-TOKEN: $GITLAB_PASSWORD" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/pipelines/${pipeline_id}")
+   ci_status=$(jq -n "$ci_output" | jq -r .status)
+   ci_web_url=$(jq -n "$ci_output" | jq -r .web_url)
+
+   echo "Current pipeline status: ${ci_status}"
+   if [ "$ci_status" = "running" ]
+   then
+     echo "Checking pipeline status..."
+     curl -d '{"state":"pending", "target_url": "'${ci_web_url}'", "context": "gitlab-ci"}' -H "Authorization: token ${GITHUB_TOKEN}"  -H "Accept: application/vnd.github.antiope-preview+json" -X POST --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"  > /dev/null
+   fi
+done
+echo
+if [ ${GET_JOB_STATUS_RETRIES} -eq ${GET_JOB_STATUS_RETRIES_MAX} ]; then
+  echo "ERROR: Wait finish pipeline timeout"
+  curl -d '{"state":"failure", "target_url": "'${ci_web_url}'", "context": "gitlab-ci"}' -H "Authorization: token ${GITHUB_TOKEN}"  -H "Accept: application/vnd.github.antiope-preview+json" -X POST --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+  exit 1
+fi
+
+echo "Pipeline finished with status ${ci_status}"
+
+echo "Fetching all GitLab pipeline jobs involved"
+ci_jobs=$(curl --header "PRIVATE-TOKEN: $GITLAB_PASSWORD" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/pipelines/${pipeline_id}/jobs" | jq -r '.[] | { id, name, stage }')
+echo "Posting output from all GitLab pipeline jobs"
+for JOB_ID in $(echo $ci_jobs | jq -r .id); do
+  echo "##[group] Stage $( echo $ci_jobs | jq -r "select(.id=="${JOB_ID}") | .stage" ) / Job $( echo $ci_jobs | jq -r "select(.id=="${JOB_ID}") | .name" )"
+  curl --header "PRIVATE-TOKEN: $GITLAB_PASSWORD" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/jobs/${JOB_ID}/trace"
+  echo "##[endgroup]"
+done
+
+echo "Debug problems by unfolding stages/jobs above"
+
+if [ "$ci_status" = "success" ]
+then
+  curl -d '{"state":"success", "target_url": "'${ci_web_url}'", "context": "gitlab-ci"}' -H "Authorization: token ${GITHUB_TOKEN}"  -H "Accept: application/vnd.github.antiope-preview+json" -X POST --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+  exit 0
+elif [ "$ci_status" = "failed" ]
+then
+  curl -d '{"state":"failure", "target_url": "'${ci_web_url}'", "context": "gitlab-ci"}' -H "Authorization: token ${GITHUB_TOKEN}"  -H "Accept: application/vnd.github.antiope-preview+json" -X POST --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+  exit 1
+fi
