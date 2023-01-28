@@ -12,4 +12,4 @@ LABEL "maintainer"="Andru Cherny"
 
 COPY cmd.sh /cmd.sh
 COPY cred-helper.sh /cred-helper.sh
-CMD ["/cmd.sh"]
+ENTRYPOINT ["/cmd.sh"]
