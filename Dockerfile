@@ -9,7 +9,7 @@ LABEL "repository"="https://github.com/SomeBlackMagic/gitlab-mirror-and-ci-actio
 LABEL "homepage"="https://github.com/SomeBlackMagic/gitlab-mirror-and-ci-action"
 LABEL "maintainer"="Andru Cherny"
 
-
+RUN mkdir -p /github/workspace
 COPY cmd.sh /cmd.sh
 COPY cred-helper.sh /cred-helper.sh
 ENTRYPOINT ["/cmd.sh"]
