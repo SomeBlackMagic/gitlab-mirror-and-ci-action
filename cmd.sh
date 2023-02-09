@@ -18,6 +18,7 @@ urlencode() (
 ##################################################################
 DEFAULT_POLL_TIMEOUT=5
 POLL_TIMEOUT=${POLL_TIMEOUT:-$DEFAULT_POLL_TIMEOUT}
+set -eu
 
 if [[ ${CI_DEBUG:-''} == "true" ]]; then
   set -x
@@ -51,12 +52,12 @@ GET_PIPELINE_ID_RETRIES=1
 GET_PIPELINE_ID_RETRIES_MAX=60
 pipeline_id=null
 
-echo Get pipelineId from commit ${branch_uri}
+echo Get pipelineId from commit ${GITHUB_REF_NAME}
 until [[ ${pipeline_id} =~ [0-9] ]] || (( GET_PIPELINE_ID_RETRIES == GET_PIPELINE_ID_RETRIES_MAX )); do
   echo -n "."
   sleep 1
   (( GET_PIPELINE_ID_RETRIES++ ))
-  pipeline_id=$(curl --fail --header "PRIVATE-TOKEN: ${GITLAB_PASSWORD}" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/repository/commits/${branch_uri}" | jq '.last_pipeline.id')
+  pipeline_id=$(curl --fail --header "PRIVATE-TOKEN: ${GITLAB_PASSWORD}" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/repository/commits/${GITHUB_REF_NAME}" | jq '.last_pipeline.id')
 done
 echo
 if [ ${GET_PIPELINE_ID_RETRIES} -eq ${GET_PIPELINE_ID_RETRIES_MAX} ]; then
