@@ -18,7 +18,7 @@ urlencode() (
 ##################################################################
 DEFAULT_POLL_TIMEOUT=5
 POLL_TIMEOUT=${POLL_TIMEOUT:-$DEFAULT_POLL_TIMEOUT}
-set -eu
+
 
 if [[ ${CI_DEBUG:-''} == "true" ]]; then
   set -x
@@ -27,7 +27,6 @@ fi
 git checkout "${GITHUB_REF:11}"
 
 branch="$(git symbolic-ref --short HEAD)"
-branch_uri="$(urlencode ${branch})"
 
 sh -c "git config --global --add safe.directory '*'"
 sh -c "git config --global credential.username ${GITLAB_USERNAME}"
@@ -47,6 +46,8 @@ then
   sh -c "echo pushing with --tags"
   sh -v -e -c "git push --tags mirror $branch"
 fi
+
+set -eu
 
 GET_PIPELINE_ID_RETRIES=1
 GET_PIPELINE_ID_RETRIES_MAX=60
