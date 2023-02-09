@@ -26,7 +26,6 @@ fi
 git checkout "${GITHUB_REF:11}"
 
 branch="$(git symbolic-ref --short HEAD)"
-
 branch_uri="$(urlencode ${branch})"
 
 sh -c "git config --global --add safe.directory '*'"
@@ -37,15 +36,15 @@ sh -c "git remote add mirror $*"
 sh -c "echo pushing to $branch branch at $(git remote get-url --push mirror)"
 if [ "${FORCE_PUSH:-}" = "true" ]
 then
-  sh -c "git push --force mirror $branch"
+  sh -v -e -c "git push --force mirror $branch"
 else
-  sh -c "git push mirror $branch"
+  sh -v -e -c "git push mirror $branch"
 fi
 
 if [ "${FOLLOW_TAGS:-}" = "true" ]
 then
   sh -c "echo pushing with --tags"
-  sh -c "git push --tags mirror $branch"
+  sh -v -e -c "git push --tags mirror $branch"
 fi
 
 GET_PIPELINE_ID_RETRIES=1
