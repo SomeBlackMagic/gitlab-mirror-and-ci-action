@@ -53,12 +53,12 @@ GET_PIPELINE_ID_RETRIES=1
 GET_PIPELINE_ID_RETRIES_MAX=60
 pipeline_id=null
 
-echo Get pipelineId from commit ${GITHUB_REF_NAME}
+echo Get pipelineId from commit ${GITHUB_SHA}
 until [[ ${pipeline_id} =~ [0-9] ]] || (( GET_PIPELINE_ID_RETRIES == GET_PIPELINE_ID_RETRIES_MAX )); do
   echo -n "."
   sleep 1
   (( GET_PIPELINE_ID_RETRIES++ ))
-  pipeline_id=$(curl --fail --header "PRIVATE-TOKEN: ${GITLAB_PASSWORD}" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/repository/commits/${GITHUB_REF_NAME}" | jq '.last_pipeline.id')
+  pipeline_id=$(curl --fail --header "PRIVATE-TOKEN: ${GITLAB_PASSWORD}" --silent "https://${GITLAB_HOSTNAME}/api/v4/projects/${GITLAB_PROJECT_ID}/repository/commits/${GITHUB_SHA}" | jq '.last_pipeline.id')
 done
 echo
 if [ ${GET_PIPELINE_ID_RETRIES} -eq ${GET_PIPELINE_ID_RETRIES_MAX} ]; then
